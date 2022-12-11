@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <!--<TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net6.0;net45;net40;net35;net20;netstandard1.0;netstandard1.3;netstandard2.0</TargetFrameworks>-->
   <PropertyGroup>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
@@ -8,7 +8,7 @@
     <RepositoryUrl>https://github.com/Zaretto/ODSReaderWriter.git</RepositoryUrl>
     <PackageTags>ODS Reader;ODS Writer;Open Document Spreadsheet;</PackageTags>
     <ApplicationIcon>icon.ico</ApplicationIcon>
-    <Authors>Josip Kremenic, RichardHarrison, Nathan Crawford</Authors>
+    <Authors>RichardHarrison, Josip Kremenic, Nathan Crawford</Authors>
     <PackageVersion>1.0.5</PackageVersion>
     <PackageLicenseExpression>GPL-2.0-only</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
@@ -22,14 +22,27 @@
     <FileVersion>1.0.0.5</FileVersion>
     <OutputType>Library</OutputType>
     <StartupObject />
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
 
 
   <ItemGroup>
+    <None Remove="icon.png" />
+    <None Remove="README.md" />
     <None Remove="template.ods" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="icon.ico" />
+    <Content Include="icon.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="template.ods" />
@@ -39,13 +52,6 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-  </ItemGroup>
-  
-  <ItemGroup>
-    <None Update="icon.png">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">

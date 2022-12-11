@@ -160,50 +160,42 @@ namespace Zaretto.ODS
         private void GetCell(XmlNode cellNode, DataRow row, XmlNamespaceManager nmsManager, ref int cellIndex)
         {
             XmlAttribute cellRepeated = cellNode.Attributes["table:number-columns-repeated"];
+            string cellValue = this.ReadCellValue(cellNode);
 
-            if (cellRepeated == null)
+            int repeats = 1;
+            if (cellRepeated != null)
+            {
+                repeats = Convert.ToInt32(cellRepeated.Value, CultureInfo.InvariantCulture);
+            }
+
+            if (!String.IsNullOrEmpty(cellValue))
+            {
+                for (int i = 0; i < repeats; i++)
             {
                 DataTable sheet = row.Table;
 
                 while (sheet.Columns.Count <= cellIndex)
                     sheet.Columns.Add();
 
-                row[cellIndex] = this.ReadCellValue(cellNode);
+                    row[cellIndex] = cellValue;
 
                 cellIndex++;
             }
+            }
             else
             {
-                var repeatCount = Convert.ToInt32(cellRepeated.Value, CultureInfo.InvariantCulture);
-                do
-                {
-                    try
-                    {
-                        if (cellIndex < row.ItemArray.Length)
-                            row[cellIndex] = this.ReadCellValue(cellNode);
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Console.WriteLine("ERROR: Cell repeat : {0}", ex.Message);
-                    }
-                    cellIndex++;
-                    repeatCount--;
-                } while (repeatCount > 0);
+                cellIndex += repeats;
             }
         }
 
         private string ReadCellValue(XmlNode cell)
         {
             XmlAttribute cellVal = cell.Attributes["office:value"];
-            string rv = null;
+
             if (cellVal == null)
-            {
-                if (!String.IsNullOrEmpty(cell.InnerText))
-                    rv = cell.InnerText;
-            }
+                return String.IsNullOrEmpty(cell.InnerText) ? null : cell.InnerText;
             else
-                rv = cellVal.Value;
-            return rv;
+                return cellVal.Value;
         }
 
         /// <summary>

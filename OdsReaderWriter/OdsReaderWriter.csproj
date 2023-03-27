@@ -8,7 +8,7 @@
     <RepositoryUrl>https://github.com/Zaretto/ODSReaderWriter.git</RepositoryUrl>
     <PackageTags>ODS Reader;ODS Writer;Open Document Spreadsheet;</PackageTags>
     <ApplicationIcon>icon.ico</ApplicationIcon>
-    <Authors>RichardHarrison, Josip Kremenic, Nathan Crawford</Authors>
+    <Authors>Richard Harrison, Josip Kremenic, Nathan Crawford</Authors>
     <PackageVersion>1.0.5</PackageVersion>
     <PackageLicenseExpression>GPL-2.0-only</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>

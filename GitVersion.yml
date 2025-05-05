@@ -1,4 +1,11 @@
 mode: ContinuousDeployment
-branches: {}
+assembly-versioning-scheme: MajorMinorPatchTag
+assembly-informational-format: '{NuGetVersion}'
+branches: 
+  master:
+    tag: release
+  develop:
+    increment: Patch
+    tag: dev
 ignore:
   sha: []

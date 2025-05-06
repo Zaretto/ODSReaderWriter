@@ -1,10 +1,13 @@
 ﻿
-using Ionic.Zip;
+using ICSharpCode.SharpZipLib.Zip;
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Xml;
 
 namespace Zaretto.ODS
@@ -42,36 +45,63 @@ namespace Zaretto.ODS
             {"rdfa", "http://docs.oasis-open.org/opendocument/meta/rdfa#"},
             {"config", "urn:oasis:names:tc:opendocument:xmlns:config:1.0"}
         };
+        //// Read zip stream (.ods file is zip file).
+        //private ZipFile GetZipFile(Stream stream)
+        //{
+        //    return ZipFile.Read(stream);
+        //}
 
-        // Read zip stream (.ods file is zip file).
+        //// Read zip file (.ods file is zip file).
+        //private ZipFile GetZipFile(string inputFilePath)
+        //{
+        //    return ZipFile.Read(inputFilePath);
+        //}
+
+        //private XmlDocument GetContentXmlFile(ZipFile zipFile)
+        //{
+        //    // Get file(in zip archive) that contains data ("content.xml").
+        //    ZipEntry contentZipEntry = zipFile["content.xml"];
+
+        //    // Extract that file to MemoryStream.
+        //    Stream contentStream = new MemoryStream();
+        //    contentZipEntry.Extract(contentStream);
+        //    contentStream.Seek(0, SeekOrigin.Begin);
+
+        //    // Create XmlDocument from MemoryStream (MemoryStream contains content.xml).
+        //    XmlDocument contentXml = new XmlDocument();
+        //    contentXml.Load(contentStream);
+
+        //    return contentXml;
+        //}
         private ZipFile GetZipFile(Stream stream)
         {
-            return ZipFile.Read(stream);
+            ZipFile zipFile = new ZipFile(stream);
+            return zipFile;
         }
 
         // Read zip file (.ods file is zip file).
         private ZipFile GetZipFile(string inputFilePath)
         {
-            return ZipFile.Read(inputFilePath);
+            FileStream fileStream = File.OpenRead(inputFilePath);
+            ZipFile zipFile = new ZipFile(fileStream);
+            return zipFile;
         }
 
         private XmlDocument GetContentXmlFile(ZipFile zipFile)
         {
-            // Get file(in zip archive) that contains data ("content.xml").
-            ZipEntry contentZipEntry = zipFile["content.xml"];
-
-            // Extract that file to MemoryStream.
-            Stream contentStream = new MemoryStream();
-            contentZipEntry.Extract(contentStream);
-            contentStream.Seek(0, SeekOrigin.Begin);
-
-            // Create XmlDocument from MemoryStream (MemoryStream contains content.xml).
             XmlDocument contentXml = new XmlDocument();
-            contentXml.Load(contentStream);
+
+            ZipEntry contentZipEntry = zipFile.GetEntry("content.xml");
+            if (contentZipEntry != null)
+            {
+                using (Stream contentStream = zipFile.GetInputStream(contentZipEntry))
+                {
+                    contentXml.Load(contentStream);
+                }
+            }
 
             return contentXml;
         }
-
         private XmlNamespaceManager InitializeXmlNamespaceManager(XmlDocument xmlDocument)
         {
             XmlNamespaceManager nmsManager = new XmlNamespaceManager(xmlDocument.NameTable);
@@ -216,11 +246,35 @@ namespace Zaretto.ODS
             foreach (DataTable sheet in odsFile.Tables)
                 this.SaveSheet(sheet, sheetsRootNode);
 
-            this.SaveContentXml(templateFile, contentXml);
+            this.SaveContentXml(templateFile, contentXml, outputFilePath);
 
-            templateFile.Save(outputFilePath);
         }
+        /// <summary>
+        /// Writes an IEnumerable as .ods file.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="data"></param>
+        /// <param name="outputFilePath"></param>
+        public void WriteOdsFile<T>(Dictionary<string, IEnumerable<T>> sheets, string outputFilePath)
+        {
+            ZipFile templateFile = this.GetZipFile(Assembly.GetExecutingAssembly().GetManifestResourceStream("OdsReaderWriter.template.ods"));
 
+            XmlDocument contentXml = this.GetContentXmlFile(templateFile);
+
+            XmlNamespaceManager nmsManager = this.InitializeXmlNamespaceManager(contentXml);
+
+            XmlNode sheetsRootNode = this.GetSheetsRootNodeAndRemoveChildrens(contentXml, nmsManager);
+
+            foreach (var sheet in sheets)
+            {
+                DataTable dataTableSheet = ConvertToDataTable<T>(sheet.Value, sheet.Key);
+                dataTableSheet.TableName = sheet.Key;
+                this.SaveSheet(dataTableSheet, sheetsRootNode);
+            }
+
+            this.SaveContentXml(templateFile, contentXml, outputFilePath);
+        }
+        public void WriteOdsFile<T>(IEnumerable<T> sheet, string name, string outputFilePath) => WriteOdsFile(ConvertToDataSet(sheet,name), outputFilePath);
         private XmlNode GetSheetsRootNodeAndRemoveChildrens(XmlDocument contentXml, XmlNamespaceManager nmsManager)
         {
             XmlNodeList tableNodes = this.GetTableNodes(contentXml, nmsManager);
@@ -232,7 +286,6 @@ namespace Zaretto.ODS
 
             return sheetsRootNode;
         }
-
         private void SaveSheet(DataTable sheet, XmlNode sheetsRootNode)
         {
             XmlDocument ownerDocument = sheetsRootNode.OwnerDocument;
@@ -250,6 +303,7 @@ namespace Zaretto.ODS
             sheetsRootNode.AppendChild(sheetNode);
         }
 
+     
         private void SaveColumnDefinition(DataTable sheet, XmlNode sheetNode, XmlDocument ownerDocument)
         {
             XmlNode columnDefinition = ownerDocument.CreateElement("table:table-column", this.GetNamespaceUri("table"));
@@ -298,15 +352,80 @@ namespace Zaretto.ODS
             }
         }
 
-        private void SaveContentXml(ZipFile templateFile, XmlDocument contentXml)
+        //private void SaveContentXml(ZipFile templateFile, XmlDocument contentXml, string outputFilePath)
+        //{
+        //    templateFile.RemoveEntry("content.xml");
+
+        //    MemoryStream memStream = new MemoryStream();
+        //    contentXml.Save(memStream);
+        //    memStream.Seek(0, SeekOrigin.Begin);
+
+        //    templateFile.AddEntry("content.xml", memStream);
+        //    templateFile.Save(outputFilePath);
+        //}
+
+
+        private void SaveContentXml(ZipFile templateFile, XmlDocument contentXml, string outputFilePath)
         {
-            templateFile.RemoveEntry("content.xml");
+            // Create the output file stream to write the new ZIP archive.
+            using (FileStream fs = File.Create(outputFilePath))
+            {
+                // Wrap the file stream with a ZipOutputStream.
+                using (ZipOutputStream zos = new ZipOutputStream(fs))
+                {
+                    // Optionally, set the level of compression (0-9).
+                    zos.SetLevel(9);
 
-            MemoryStream memStream = new MemoryStream();
-            contentXml.Save(memStream);
-            memStream.Seek(0, SeekOrigin.Begin);
+                    // Copy every entry from the original ZIP except "content.xml".
+                    foreach (ZipEntry entry in templateFile)
+                    {
+                        // Skip the old "content.xml" entry.
+                        if (string.Equals(entry.Name, "content.xml", StringComparison.OrdinalIgnoreCase))
+                            continue;
 
-            templateFile.AddEntry("content.xml", memStream);
+                        // Create a new entry for the output ZIP.
+                        ZipEntry newEntry = new ZipEntry(entry.Name)
+                        {
+                            DateTime = entry.DateTime
+                            // You can copy more entry properties if needed.
+                        };
+
+                        // Add the entry header to the output archive.
+                        zos.PutNextEntry(newEntry);
+
+                        // Open the input stream for the current entry from the template file.
+                        using (Stream inputStream = templateFile.GetInputStream(entry))
+                        {
+                            CopyStream(inputStream, zos);
+                        }
+
+                        zos.CloseEntry();
+                    }
+
+                    // Create the new "content.xml" entry.
+                    ZipEntry contentEntry = new ZipEntry("content.xml");
+                    zos.PutNextEntry(contentEntry);
+
+                    // Save the XML content into a MemoryStream first.
+                    using (MemoryStream memStream = new MemoryStream())
+                    {
+                        contentXml.Save(memStream);
+                        memStream.Seek(0, SeekOrigin.Begin);
+                        CopyStream(memStream, zos);
+                    }
+
+                    zos.CloseEntry();
+                }
+            }
+        }
+        private void CopyStream(Stream input, Stream output)
+        {
+            byte[] buffer = new byte[40960];
+            int bytesRead;
+            while ((bytesRead = input.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                output.Write(buffer, 0, bytesRead);
+            }
         }
 
         private string GetNamespaceUri(string prefix)
@@ -318,6 +437,46 @@ namespace Zaretto.ODS
             }
 
             throw new InvalidOperationException("Can't find that namespace URI");
+        }
+
+        public static DataTable ConvertToDataTable<T>(IEnumerable<T> list, string sheetName)
+        {
+            DataTable table = new DataTable(typeof(T).Name);
+
+            PropertyInfo[] properties = typeof(T).GetProperties();
+            foreach (PropertyInfo prop in properties)
+            {
+                table.Columns.Add(prop.Name, Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType);
+            }
+
+            // Populate rows from the object list
+            foreach (T item in list)
+            {
+                DataRow row = table.NewRow();
+                foreach (PropertyInfo prop in properties)
+                {
+                    row[prop.Name] = prop.GetValue(item, null) ?? DBNull.Value;
+                }
+                table.Rows.Add(row);
+            }
+            table.TableName = sheetName;
+            return table;
+        }
+
+        public static DataSet ConvertToDataSet<T>(Dictionary<string, IEnumerable<T>> sheets)
+        {
+            DataSet dataSet = new DataSet();
+            foreach (var sheet in sheets)
+            {
+                dataSet.Tables.Add(ConvertToDataTable(sheet.Value, sheet.Key));
+            }
+            return dataSet;
+        }
+        public static DataSet ConvertToDataSet<T>(IEnumerable<T> sheet, string sheetName)
+        {
+            DataSet dataSet = new DataSet();
+            dataSet.Tables.Add(ConvertToDataTable(sheet, sheetName));
+            return dataSet;
         }
     }
 

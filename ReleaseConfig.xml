@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ReleaseConfig p1:noNamespaceSchemaLocation="file:///c:/xml-schemas/ReleaseConfig.xsd" xmlns:p1="http://www.w3.org/2001/XMLSchema-instance">
+    <Name>OdsReaderWriter</Name>
+
+    <Artefacts>
+        <!-- This will build, pack and copy the archive to nuget -->
+        <build>
+            <exec app="dotnet.exe" args="build -c Release" folder="~PUBLISHROOT~"/>
+            <exec app="dotnet.exe" args="pack OdsReaderWriter.csproj -c Release" folder="~PUBLISHROOT~\OdsReaderWriter"/>
+            <exec app="dotnet.exe" args="nuget push OdsReaderWriter.~SemVer~.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json" folder="~PUBLISHROOT~\OdsReaderWriter\bin\release\"/>
+        </build>
+    </Artefacts>
+</ReleaseConfig>

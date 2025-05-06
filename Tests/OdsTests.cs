@@ -35,7 +35,7 @@ namespace Ods
 
 
         [TestMethod]
-        public void ReadWrite()
+        public void ReadWriteList()
         {
             var odsReaderWriter = new ODSReaderWriter();
             string tempPath = Path.Combine(Path.GetTempPath(), "test.ods");
@@ -60,8 +60,43 @@ namespace Ods
                     row.ItemArray.GetValue(3).ToString().ShouldBe(item.DateOfBirth.ToString());
                     row.ItemArray.GetValue(4).ToString().ShouldBe(item.Salary.ToString());
                 }
-                //   odsReaderWriter.WriteOdsFile(spreadsheetData, "c:/temp/test.ods");
             }
         }
+        [TestMethod]
+        public void ReadWriteDictionary()
+        {
+            var odsReaderWriter = new ODSReaderWriter();
+            string tempPath = Path.Combine(Path.GetTempPath(), "test1.ods");
+
+            var dictionary = new Dictionary<string, IEnumerable<Person>> {
+                { "Sheet1", GetTestData() },
+                { "Sheet2", GetTestData() }
+            };
+            odsReaderWriter.WriteOdsFile(dictionary, tempPath);
+            var spreadsheetData = odsReaderWriter.ReadOdsFile(tempPath);
+            if (spreadsheetData != null)
+            {
+                spreadsheetData.Tables.Count.ShouldBe(2);
+                spreadsheetData.Tables[0].TableName.ShouldBe("Sheet1");
+                spreadsheetData.Tables[1].TableName.ShouldBe("Sheet2");
+                foreach (DataTable table in spreadsheetData.Tables)
+                {
+                    System.Console.WriteLine("Sheet {0}", table.TableName);
+                    foreach (var row in table.AsEnumerable())
+                    {
+                        if (row.ItemArray.Any(ia => !string.IsNullOrEmpty(ia.ToString())))
+                            System.Console.WriteLine("    {0}", string.Join(",", row.ItemArray.Select(xx => xx.ToString())));
+                        var id = row.ItemArray.GetValue(0).ToString();
+                        var item = dictionary[table.TableName].FirstOrDefault(xx => xx.Id.ToString() == id);
+                        item.ShouldNotBeNull();
+                        row.ItemArray.GetValue(1).ToString().ShouldBe(item.Name);
+                        row.ItemArray.GetValue(2).ToString().ShouldBe(item.Age.ToString());
+                        row.ItemArray.GetValue(3).ToString().ShouldBe(item.DateOfBirth.ToString());
+                        row.ItemArray.GetValue(4).ToString().ShouldBe(item.Salary.ToString());
+                    }
+                }
+            }
+        }
+
     }
 }

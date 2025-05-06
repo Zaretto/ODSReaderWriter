@@ -1,10 +1,13 @@
 ﻿
 using ICSharpCode.SharpZipLib.Zip;
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Xml;
 
 namespace Zaretto.ODS
@@ -42,7 +45,6 @@ namespace Zaretto.ODS
             {"rdfa", "http://docs.oasis-open.org/opendocument/meta/rdfa#"},
             {"config", "urn:oasis:names:tc:opendocument:xmlns:config:1.0"}
         };
-
         //// Read zip stream (.ods file is zip file).
         //private ZipFile GetZipFile(Stream stream)
         //{
@@ -247,7 +249,32 @@ namespace Zaretto.ODS
             this.SaveContentXml(templateFile, contentXml, outputFilePath);
 
         }
+        /// <summary>
+        /// Writes an IEnumerable as .ods file.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="data"></param>
+        /// <param name="outputFilePath"></param>
+        public void WriteOdsFile<T>(Dictionary<string, IEnumerable<T>> sheets, string outputFilePath)
+        {
+            ZipFile templateFile = this.GetZipFile(Assembly.GetExecutingAssembly().GetManifestResourceStream("OdsReaderWriter.template.ods"));
 
+            XmlDocument contentXml = this.GetContentXmlFile(templateFile);
+
+            XmlNamespaceManager nmsManager = this.InitializeXmlNamespaceManager(contentXml);
+
+            XmlNode sheetsRootNode = this.GetSheetsRootNodeAndRemoveChildrens(contentXml, nmsManager);
+
+            foreach (var sheet in sheets)
+            {
+                DataTable dataTableSheet = ConvertToDataTable<T>(sheet.Value, sheet.Key);
+                dataTableSheet.TableName = sheet.Key;
+                this.SaveSheet(dataTableSheet, sheetsRootNode);
+            }
+
+            this.SaveContentXml(templateFile, contentXml, outputFilePath);
+        }
+        public void WriteOdsFile<T>(IEnumerable<T> sheet, string name, string outputFilePath) => WriteOdsFile(ConvertToDataSet(sheet,name), outputFilePath);
         private XmlNode GetSheetsRootNodeAndRemoveChildrens(XmlDocument contentXml, XmlNamespaceManager nmsManager)
         {
             XmlNodeList tableNodes = this.GetTableNodes(contentXml, nmsManager);
@@ -259,7 +286,6 @@ namespace Zaretto.ODS
 
             return sheetsRootNode;
         }
-
         private void SaveSheet(DataTable sheet, XmlNode sheetsRootNode)
         {
             XmlDocument ownerDocument = sheetsRootNode.OwnerDocument;
@@ -277,6 +303,7 @@ namespace Zaretto.ODS
             sheetsRootNode.AppendChild(sheetNode);
         }
 
+     
         private void SaveColumnDefinition(DataTable sheet, XmlNode sheetNode, XmlDocument ownerDocument)
         {
             XmlNode columnDefinition = ownerDocument.CreateElement("table:table-column", this.GetNamespaceUri("table"));
@@ -410,6 +437,46 @@ namespace Zaretto.ODS
             }
 
             throw new InvalidOperationException("Can't find that namespace URI");
+        }
+
+        public static DataTable ConvertToDataTable<T>(IEnumerable<T> list, string sheetName)
+        {
+            DataTable table = new DataTable(typeof(T).Name);
+
+            PropertyInfo[] properties = typeof(T).GetProperties();
+            foreach (PropertyInfo prop in properties)
+            {
+                table.Columns.Add(prop.Name, Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType);
+            }
+
+            // Populate rows from the object list
+            foreach (T item in list)
+            {
+                DataRow row = table.NewRow();
+                foreach (PropertyInfo prop in properties)
+                {
+                    row[prop.Name] = prop.GetValue(item, null) ?? DBNull.Value;
+                }
+                table.Rows.Add(row);
+            }
+            table.TableName = sheetName;
+            return table;
+        }
+
+        public static DataSet ConvertToDataSet<T>(Dictionary<string, IEnumerable<T>> sheets)
+        {
+            DataSet dataSet = new DataSet();
+            foreach (var sheet in sheets)
+            {
+                dataSet.Tables.Add(ConvertToDataTable(sheet.Value, sheet.Key));
+            }
+            return dataSet;
+        }
+        public static DataSet ConvertToDataSet<T>(IEnumerable<T> sheet, string sheetName)
+        {
+            DataSet dataSet = new DataSet();
+            dataSet.Tables.Add(ConvertToDataTable(sheet, sheetName));
+            return dataSet;
         }
     }
 

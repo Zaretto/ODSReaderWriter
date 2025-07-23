@@ -119,10 +119,12 @@ namespace Zaretto.ODS
         /// <returns>DataSet that represents .ods file.</returns>
         public DataSet ReadOdsFile(string inputFilePath)
         {
-            ZipFile odsZipFile = this.GetZipFile(inputFilePath);
-
+            XmlDocument contentXml;
+            using (ZipFile odsZipFile = this.GetZipFile(inputFilePath))
+            {
             // Get content.xml file
-            XmlDocument contentXml = this.GetContentXmlFile(odsZipFile);
+                contentXml = this.GetContentXmlFile(odsZipFile);
+            }
 
             // Initialize XmlNamespaceManager
             XmlNamespaceManager nmsManager = this.InitializeXmlNamespaceManager(contentXml);
